@@ -8,7 +8,11 @@ export type ApiError = {
 };
 
 export async function apiFetch<T>(input: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+  const cleanedBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  const url = input.startsWith("http") ? input : `${cleanedBaseUrl}${input}`;
+
+  const response = await fetch(url, {
     ...init,
     credentials: "include",
     headers: {
