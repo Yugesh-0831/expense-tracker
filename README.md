@@ -12,7 +12,7 @@ A production-grade, full-stack personal finance tool built to reliably track and
 
 ### Backend: FastAPI + SQLAlchemy ORM + PostgreSQL
 - **FastAPI**: Chosen for its high performance execution speed and native async support. Pydantic is utilized to enforce strict, rigorous type safety at the API boundary.
-- **SQLAlchemy ORM + Postgres**: Instead of settling for an in-memory JSON file or SQLite, I chose full relational PostgreSQL powered by the SQLAlchemy ORM. Financial data is inherently relational, and strict ACID-compliance is non-negotiable to prevent corrupted data.
+- **SQLAlchemy ORM + Neon Postgres**: Instead of settling for an in-memory JSON file or SQLite, I chose full serverless relational Neon PostgreSQL powered by the SQLAlchemy ORM. Financial data is inherently relational, and strict ACID-compliance is non-negotiable to prevent corrupted data.
 
 ### Frontend: React + Vite + TypeScript
 - **Vite**: Provides immediate HMR and highly optimized production builds. 
