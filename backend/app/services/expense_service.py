@@ -1,10 +1,11 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.core.constants import CATEGORIES
 from app.core.logging import get_logger
 from app.models.expense import Expense
-from app.repositories.expense_repository import create_expense, list_expenses, list_recent_expenses
+from app.repositories.expense_repository import create_expense, list_expenses, list_recent_expenses, get_expense_by_idempotency_key
 from app.schemas.expense import ExpenseAnalyticsResponse, ExpenseCreate, ExpenseListResponse, ExpenseResponse, paise_to_amount_string, normalize_amount_to_paise
 
 logger = get_logger(__name__)
@@ -21,15 +22,31 @@ def serialize_expense(expense: Expense) -> ExpenseResponse:
     )
 
 
-def create_expense_for_user(db: Session, *, user_id: int, payload: ExpenseCreate) -> ExpenseResponse:
-    expense = create_expense(
-        db,
-        user_id=user_id,
-        amount_paise=normalize_amount_to_paise(payload.amount),
-        category=payload.category,
-        description=payload.description,
-        expense_date=payload.date,
-    )
+def create_expense_for_user(db: Session, *, user_id: int, payload: ExpenseCreate, idempotency_key: str | None = None) -> ExpenseResponse:
+    if idempotency_key:
+        existing = get_expense_by_idempotency_key(db, user_id=user_id, idempotency_key=idempotency_key)
+        if existing:
+            logger.info("Idempotency hit: user_id=%s idempotency_key=%s", user_id, idempotency_key)
+            return serialize_expense(existing)
+
+    try:
+        expense = create_expense(
+            db,
+            user_id=user_id,
+            amount_paise=normalize_amount_to_paise(payload.amount),
+            category=payload.category,
+            description=payload.description,
+            expense_date=payload.date,
+            idempotency_key=idempotency_key,
+        )
+    except IntegrityError:
+        db.rollback()
+        # Edge case: Concurrent duplicate hit caught by UniqueConstraint
+        existing = get_expense_by_idempotency_key(db, user_id=user_id, idempotency_key=idempotency_key) # type: ignore
+        if existing:
+            return serialize_expense(existing)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Expense could not be created due to conflict")
+
     logger.info(
         "Expense created: expense_id=%s user_id=%s category=%s amount_paise=%s",
         expense.id,

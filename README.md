@@ -1,108 +1,48 @@
-# Authenticated Expense Tracker
+# Fenmo Expense Tracker
 
-A local-first monorepo for a small personal finance tool with:
+A production-grade, minimalist personal finance tool built for the Fenmo assessment. Designed to reliably track and manage expenses under real-world conditions.
 
-- `frontend/`: React + TypeScript + Vite
-- `backend/`: FastAPI + SQLAlchemy + Alembic
-- `database`: PostgreSQL via Neon `DATABASE_URL`
+**Live Deployment:**
+- **Frontend (Netlify):** https://expense-tracker-fenmo.netlify.app 
+- **Backend (Render):** https://expense-tracker-3rs8.onrender.com
 
-## Why Postgres
+---
 
-This project uses managed Postgres because the app is expected to run in deployed conditions and retain data reliably across refreshes and restarts. Postgres gives durable external storage, relational constraints, and transactional correctness without relying on local files.
+## 🛠️ Tech Stack & Key Choices
 
-## Why Money Is Stored As Integer Paise
+### **Backend: FastAPI + SQLAlchemy + PostgreSQL**
+- **Reasoning**: Chosen for its incredible speed, native `async` support, and automatic OpenAPI generation. 
+- **Database (Neon PostgreSQL)**: Instead of settling for a minimal JSON or SQLite implementation, I chose a real relational database. Financial data (ledgers, expenses) is highly relational and requires strict ACID compliance, which PostgreSQL handles perfectly.
 
-Amounts are stored as `amount_paise` integers instead of floats. Floating-point arithmetic is not exact for currency, while integer minor units keep totals and comparisons correct.
+### **Frontend: React + Vite + TypeScript**
+- **Reasoning**: Vite provides instant HMR and blazing-fast builds. A CSS-only styling approach was taken to achieve a highly customized aesthetic without the bloat of an external component library.
+- **Code-Splitting**: Routes are dynamically lazy-loaded using `React.lazy` to keep the initial bundle ultra-lean.
 
-## Phase 1 Scope
+---
 
-Included:
+## 🔒 Core Engineering Decisions
 
-- signup, login, logout, current-user
-- authenticated expense creation
-- expense listing
-- category filter
-- newest-first date sorting
-- total for the current visible list
-- fixed built-in categories
+### 1. Robust Idempotency (Preventing Duplicate Charges)
+"The API should behave correctly even if the client retries the same request due to network issues or page reloads."
+- **How it works**: The React frontend creates a highly unique `uuidv4` when the user opens the Create Expense form. This is sent to the backend via the `Idempotency-Key` header.
+- **Transactional Safety**: The PostgreSQL `expenses` table features a `UniqueConstraint(user_id, idempotency_key)`. If a user spams the submit button, or a network failure forces an automatic retry, the database physically rejects the duplicate, and the backend safely intercepts the `IntegrityError` to return the original 201 Created expense data.
 
-Excluded:
+### 2. Security (Cross-Domain Session Cookies)
+- Instead of storing JWTs in `localStorage` (which is vulnerable to XSS attacks), JWT access tokens are stored in strictly configured `HttpOnly`, `Secure`, `SameSite=None` cookies.
+- This secures cross-domain production authentication between the Netlify frontend and Render backend, protecting user sessions against CSRF and XSS inherently.
 
-- custom categories
-- idempotency and retry-safe create behavior
-- deployment setup
-- automated tests
+### 3. Data Representation
+- **Money Handling**: `amount` is never stored as a float. Instead, the backend ingests standard decimals and normalizes them securely into `amount_paise` (Integers) inside the database. This guarantees 100% precision with zero floating-point arithmetic errors.
 
-## Trade-offs
+---
 
-- Auth is included from the start so expenses are user-owned, but the auth flow is intentionally small: email/password plus a JWT in an HTTP-only cookie.
-- Custom categories are deferred because `Other` covers the immediate UX without adding category CRUD.
-- JWT expiry is set to 7 days for easy manual testing. There is no refresh-token flow in this phase.
-- Reliability work for retries and duplicate submissions is intentionally deferred to Phase 2.
-- Logging is centralized through a dedicated backend logging module. HTTP status codes still use FastAPI's built-in `status` constants rather than custom wrappers.
-- Password hashing uses `pbkdf2_sha256` to avoid bcrypt's 72-byte password limit during local development and manual testing.
+## 🧪 Testing Suite
+A Pytest automation suite runs seamlessly using an isolated, ephemeral in-memory SQLite database to ensure the logic runs blazingly fast without polluting the actual DB. It hits endpoints via FastAPI `TestClient`:
+- Auth Suite (`test_auth.py`): Checks signup, login, session cookies, and authorization guards.
+- Expenses Suite (`test_expenses.py`): Re-verifies category filtering, strict descending date sorting, and enforces that the Idempotency logic effectively halts double-insertions.
 
-## Local Setup
+---
 
-### 1. Backend environment
-
-Copy `backend/.env.example` to `backend/.env` and fill in:
-
-- `DATABASE_URL`
-- `JWT_SECRET`
-
-If you paste a Neon connection string that starts with `postgresql://`, the backend normalizes it automatically for SQLAlchemy's `psycopg` driver.
-
-### 2. Install dependencies
-
-Backend:
-
-```powershell
-cd backend
-python -m venv .venv
-.venv\Scripts\activate
-python -m pip install -r requirements.txt
-```
-
-Frontend:
-
-```powershell
-cd frontend
-npm.cmd install
-```
-
-### 3. Run migrations
-
-```powershell
-cd backend
-.venv\Scripts\activate
-alembic upgrade head
-```
-
-### 4. Start the backend
-
-```powershell
-cd backend
-.venv\Scripts\activate
-uvicorn app.main:app --reload --port 8000
-```
-
-### 5. Start the frontend
-
-```powershell
-cd frontend
-npm.cmd run dev
-```
-
-Frontend runs at `http://localhost:5173` and talks to the FastAPI backend at `http://localhost:8000`.
-
-## Manual Verification
-
-- Sign up a user
-- Log in and confirm the app loads expenses
-- Add expenses with different categories and dates
-- Add an expense with a blank description
-- Filter by category and confirm the visible list changes
-- Confirm newest dates are listed first
-- Confirm the total matches the visible list
-- Log out and confirm the app returns to the auth screen
+## 🕒 Trade-offs made for time
+1. **Analytics Scope**: The "Total Spent" dashboard runs aggregations efficiently in Python, but for a massively scaled app over years of data, these computations would ideally be shifted to raw SQL aggregations (`GROUP BY category`).
+2. **Refresh Tokens**: I implemented a standard 7-day `HttpOnly` JWT. With more time, a short-lived Access Token + long-lived Refresh Token strategy with a Redis blocklist would be introduced for premium security.

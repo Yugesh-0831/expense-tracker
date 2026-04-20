@@ -12,6 +12,7 @@ def create_expense(
     category: str,
     description: str | None,
     expense_date,
+    idempotency_key: str | None = None,
 ) -> Expense:
     expense = Expense(
         user_id=user_id,
@@ -19,11 +20,18 @@ def create_expense(
         category=category,
         description=description,
         expense_date=expense_date,
+        idempotency_key=idempotency_key,
     )
     db.add(expense)
     db.commit()
     db.refresh(expense)
     return expense
+
+
+def get_expense_by_idempotency_key(db: Session, *, user_id: int, idempotency_key: str) -> Expense | None:
+    statement = select(Expense).where(Expense.user_id == user_id, Expense.idempotency_key == idempotency_key)
+    return db.scalars(statement).first()
+
 
 
 def list_expenses(

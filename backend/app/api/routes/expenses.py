@@ -1,6 +1,6 @@
 from logging import Logger
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, Header
 
 from app.api.deps import DbSession, get_current_user
 from app.core.logging import get_logger
@@ -19,9 +19,14 @@ def expense_analytics(db: DbSession, current_user: User = Depends(get_current_us
 
 @router.post("", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
 def create_expense(
-    payload: ExpenseCreate, db: DbSession, current_user: User = Depends(get_current_user)
+    payload: ExpenseCreate, 
+    db: DbSession, 
+    current_user: User = Depends(get_current_user),
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key")
 ) -> ExpenseResponse:
-    return create_expense_for_user(db, user_id=current_user.id, payload=payload)
+    return create_expense_for_user(
+        db, user_id=current_user.id, payload=payload, idempotency_key=idempotency_key
+    )
 
 
 @router.get("", response_model=ExpenseListResponse)

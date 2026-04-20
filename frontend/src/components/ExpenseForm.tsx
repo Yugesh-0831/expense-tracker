@@ -35,6 +35,9 @@ export function ExpenseForm({ onSubmit, loading, error, onClose }: ExpenseFormPr
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (new Date(date) > new Date()) {
+      return; // Safety guard
+    }
     await onSubmit({ amount, category, description, date });
     resetForm();
     onClose();
@@ -83,7 +86,7 @@ export function ExpenseForm({ onSubmit, loading, error, onClose }: ExpenseFormPr
 
         <label>
           Date
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} required />
+          <input type="date" value={date} max={today()} onChange={(event) => setDate(event.target.value)} required />
         </label>
 
         {error ? <p className="error-text">{error}</p> : null}

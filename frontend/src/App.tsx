@@ -1,4 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from "react";
+import { v4 as uuidv4 } from "uuid";
 
 import { apiFetch } from "./api/client";
 import { AuthPanel } from "./components/AuthPanel";
@@ -54,6 +55,7 @@ function App() {
 
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState(uuidv4());
 
   async function loadCurrentUser() {
     try {
@@ -169,8 +171,10 @@ function App() {
     try {
       await apiFetch<Expense>("/expenses", {
         method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
         body: JSON.stringify(values)
       });
+      setIdempotencyKey(uuidv4());
       setPage(1);
       await Promise.all([loadDashboardExpenses(), loadTransactions(selectedCategory, selectedSort, 1)]);
     } catch (error) {
