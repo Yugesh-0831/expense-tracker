@@ -21,7 +21,7 @@ def set_auth_cookie(response: Response, token: str) -> None:
         key=settings.auth_cookie_name,
         value=token,
         httponly=True,
-        samesite="lax",
+        samesite="none" if settings.cookie_secure else "lax",
         secure=settings.cookie_secure,
         expires=expires,
         domain=settings.cookie_domain or None,
@@ -33,7 +33,7 @@ def clear_auth_cookie(response: Response) -> None:
     response.delete_cookie(
         key=settings.auth_cookie_name,
         httponly=True,
-        samesite="lax",
+        samesite="none" if settings.cookie_secure else "lax",
         secure=settings.cookie_secure,
         domain=settings.cookie_domain or None,
         path="/",
