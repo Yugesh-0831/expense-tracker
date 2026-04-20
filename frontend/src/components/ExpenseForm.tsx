@@ -37,8 +37,8 @@ export function ExpenseForm({ onSubmit, loading, error, onClose }: ExpenseFormPr
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (new Date(date) > new Date()) {
-      return; // Safety guard
+    if (date > today()) {
+      return; // Safety guard explicitly checking local YYYY-MM-DD formats
     }
     await onSubmit({ amount, category, description, date });
     resetForm();
