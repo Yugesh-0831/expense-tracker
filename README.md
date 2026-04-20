@@ -42,7 +42,7 @@ A production-grade, full-stack personal finance tool built to reliably track and
 ## Trade-offs & Architecture Limitations
 
 1. **Authentication Token Strategy**
-   - I implemented a 7-day HttpOnly, SameSite=None JWT Access Cookie. A 7-day TTL is technically too long for a highly sensitive banking app. Given more time, I would swap this for a dual-token system (a quick 15-minute Access Token + strict Refresh Token checking a Redis blocklist). I also skipped generic OAuth integrations to strictly maintain MVP scope.
+   - I implemented a 7-day HttpOnly, SameSite=None JWT Access Cookie. A 7-day TTL is technically too long for a highly sensitive banking app. Given more time, I would swap this for a dual-token system (a quick 15-minute Access Token + strict Refresh Token system). I also skipped generic OAuth integrations to strictly maintain MVP scope.
    
 2. **Analytics & ORM Scalability**
    - Currently, the 'Total Spent' charts compute dynamically via standard ORM queries and simple logic. In a truly massive application with gigabytes of ledger history, this approach will bottleneck. I would eventually shift these computations into raw parameterized SQL aggregations (GROUP BY category) to force the database indexer to do the heavy lifting.

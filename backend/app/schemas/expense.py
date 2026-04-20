@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -54,7 +54,7 @@ class ExpenseCreate(BaseModel):
     @field_validator("date")
     @classmethod
     def validate_date_not_in_future(cls, value: date) -> date:
-        if value > date.today():
+        if value > date.today() + timedelta(days=1):
             raise ValueError("Date cannot be in the future")
         return value
 
