@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/api/client.ts","./src/components/authpanel.tsx","./src/components/dashboardview.tsx","./src/components/expenseform.tsx","./src/components/expensetable.tsx","./src/components/transactionsview.tsx","./src/lib/categories.ts","./src/lib/currency.ts"],"version":"5.9.3"}
