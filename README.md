@@ -1,8 +1,8 @@
 # Fenmo Expense Tracker
 
-A production-grade, minimalist personal finance tool built for the Fenmo assessment. Designed to reliably track and manage expenses under real-world conditions.
+Hey! I'm Yugesh. This is my submission for the Fenmo assessment: a minimalist yet extremely robust personal finance tracker. I didn't want to just build a throwaway prototype, so I designed this to reliably track expenses under real-world conditions (slow networks, duplicate clicks, etc.).
 
-**Live Deployment:**
+**Live Deployments:**
 - **Frontend (Netlify):** https://expense-tracker-fenmo.netlify.app 
 - **Backend (Render):** https://expense-tracker-3rs8.onrender.com
 
@@ -10,39 +10,57 @@ A production-grade, minimalist personal finance tool built for the Fenmo assessm
 
 ## 🛠️ Tech Stack & Key Choices
 
-### **Backend: FastAPI + SQLAlchemy + PostgreSQL**
-- **Reasoning**: Chosen for its incredible speed, native `async` support, and automatic OpenAPI generation. 
-- **Database (Neon PostgreSQL)**: Instead of settling for a minimal JSON or SQLite implementation, I chose a real relational database. Financial data (ledgers, expenses) is highly relational and requires strict ACID compliance, which PostgreSQL handles perfectly.
+### **Backend: FastAPI + SQLAlchemy ORM + PostgreSQL**
+- **FastAPI**: I went with FastAPI because the execution speed is incredible, and throwing Pydantic in the mix gives me instant, rigorous type safety right at the API boundary.
+- **SQLAlchemy ORM + Postgres**: Instead of settling for an in-memory JSON file or SQLite, I chose full relational PostgreSQL powered by the SQLAlchemy ORM. Financial data is inherently relational, and strict ACID-compliance is non-negotiable to prevent corrupted data.
 
 ### **Frontend: React + Vite + TypeScript**
-- **Reasoning**: Vite provides instant HMR and blazing-fast builds. A CSS-only styling approach was taken to achieve a highly customized aesthetic without the bloat of an external component library.
-- **Code-Splitting**: Routes are dynamically lazy-loaded using `React.lazy` to keep the initial bundle ultra-lean.
+- **Vite**: Gives me blazing-fast HMR and solid production builds. 
+- I explicitly chose a vanilla CSS approach instead of something huge like Material UI or Tailwind. I wanted to prioritize raw correctness, loading speed, and UI clarity over bloated framework animations.
 
 ---
 
 ## 🔒 Core Engineering Decisions
 
 ### 1. Robust Idempotency (Preventing Duplicate Charges)
-"The API should behave correctly even if the client retries the same request due to network issues or page reloads."
-- **How it works**: The React frontend creates a highly unique `uuidv4` when the user opens the Create Expense form. This is sent to the backend via the `Idempotency-Key` header.
-- **Transactional Safety**: The PostgreSQL `expenses` table features a `UniqueConstraint(user_id, idempotency_key)`. If a user spams the submit button, or a network failure forces an automatic retry, the database physically rejects the duplicate, and the backend safely intercepts the `IntegrityError` to return the original 201 Created expense data.
+- **The Problem**: Users love frantically double-clicking "Submit", and unreliable mobile networks trigger automatic retries.
+- **The Fix**: The frontend form strictly generates a unique `uuidv4` per session and passes it via an `Idempotency-Key` header. Down in the database, I attached a `UniqueConstraint(user_id, idempotency_key)` to the `expenses` table. If an exact retry hits the backend, Postgres physically blocks the duplicate, and the API cleanly bounces back the already-saved expense. No bloated secondary caching tables needed.
 
-### 2. Security (Cross-Domain Session Cookies)
-- Instead of storing JWTs in `localStorage` (which is vulnerable to XSS attacks), JWT access tokens are stored in strictly configured `HttpOnly`, `Secure`, `SameSite=None` cookies.
-- This secures cross-domain production authentication between the Netlify frontend and Render backend, protecting user sessions against CSRF and XSS inherently.
+### 2. Money Handling (The Paise Trick)
+- Handling money as floating-point decimals natively is a cardinal sin (e.g., `0.1 + 0.2 = 0.30000000000000004`). 
+- **The Fix**: On a code level, the backend intercepts standard floating decimals and multiplies them out to store them securely as `amount_paise` (Integers). All core persistence logic handles solid integers.
 
-### 3. Data Representation
-- **Money Handling**: `amount` is never stored as a float. Instead, the backend ingests standard decimals and normalizes them securely into `amount_paise` (Integers) inside the database. This guarantees 100% precision with zero floating-point arithmetic errors.
+### 3. Service-Repository Architecture
+- I deliberately bypassed the standard "fat controller" pattern. The backend is strictly layered into `Controllers` -> `Services` -> `Repositories`. This centralizes error handling and explicitly separates database ORM calls from API routing.
 
----
-
-## 🧪 Testing Suite
-A Pytest automation suite runs seamlessly using an isolated, ephemeral in-memory SQLite database to ensure the logic runs blazingly fast without polluting the actual DB. It hits endpoints via FastAPI `TestClient`:
-- Auth Suite (`test_auth.py`): Checks signup, login, session cookies, and authorization guards.
-- Expenses Suite (`test_expenses.py`): Re-verifies category filtering, strict descending date sorting, and enforces that the Idempotency logic effectively halts double-insertions.
+### 4. Timezone Mitigation (The UTC Midnight Bug)
+- **The Problem**: A user in India reporting adding an expense near midnight local time. Native Javascript `Date().toISOString()` calculates against global UTC time, which can drag "today" into "yesterday" restricting them from selecting their actual current date natively in the calendar.
+- **The Fix**: The frontend calculation dynamically adjusts `d.getTimezoneOffset()` before firing the ISO constraint. Simultaneously, the backend validation relaxes the strict `Future Date` validation by allowing a `+1 day` variance to gracefully accept ledgers from any global timezone without throwing `422 Unprocessable Entity` errors.
 
 ---
 
-## 🕒 Trade-offs made for time
-1. **Analytics Scope**: The "Total Spent" dashboard runs aggregations efficiently in Python, but for a massively scaled app over years of data, these computations would ideally be shifted to raw SQL aggregations (`GROUP BY category`).
-2. **Refresh Tokens**: I implemented a standard 7-day `HttpOnly` JWT. With more time, a short-lived Access Token + long-lived Refresh Token strategy with a Redis blocklist would be introduced for premium security.
+## ⏳ Trade-offs & "I Was On a Clock" Decisions
+
+1. **Authentication Token Strategy**
+   - I implemented a 7-day `HttpOnly`, `SameSite=None` JWT Access Cookie. A 7-day TTL is technically too long for a highly sensitive banking app. Given more time, I would absolutely swap this for a dual-token system (a quick 15-minute Access Token + strict Refresh Token checking a Redis blocklist). I also skipped generic OAuth integrations to strictly maintain scope.
+   
+2. **Analytics & ORM Scalability**
+   - Currently, the "Total Spent" charts compute dynamically via standard ORM queries and simple logic. In a truly massive app with gigabytes of ledger history, this slows down. I'd eventually shift these computations into raw parameterized SQL aggregations (`GROUP BY category`) to force the indexer to do the real heavy lifting.
+
+3. **UI / UX Scope**
+   - I kept the frontend tight and functional. If I wasn't timeboxed, I would have heavily revamped the Dashboard UX, breaking down historical trends and adding more overarching visual analytics.
+
+---
+
+## 🚀 Future Roadmap
+If I were maintaining this past the assessment phase, here is what I'd build next:
+- **Custom Categories**: Letting users define their own profiling instead of a hardcoded list.
+- **Social / Group Splitting**: Connecting users so they can record "Group Expenses" and split shares amongst friends dynamically (real "Fenmo" utility!). 
+
+---
+
+## 🧪 Automated Testing
+I also wired up a fast, ephemeral SQLite `pytest` suite testing:
+- **Auth**: Sessions, protected routes, and cookies.
+- **Expenses**: Filtering, strict descending sorts, and future-date insertion rejections.
+- **Idempotency**: Proves the API forcefully prevents duplicate UUID insertions naturally.
